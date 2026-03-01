@@ -1,0 +1,115 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(100)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(MEMBER)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  createdDeals       Deal[]            @relation("CreatedBy")
+  statusChanges      DealStatusHistory[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+model PipelineStage {
+  id          Int    @id
+  name        String @unique @db.VarChar(50)
+  probability Float  // 0.0 – 1.0
+  sortOrder   Int    @map("sort_order")
+
+  @@map("pipeline_stages")
+}
+
+model Deal {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String    @db.VarChar(255)
+  type         DealType
+  status       String    @db.VarChar(50)
+  dealOwner    String    @map("deal_owner") @db.VarChar(100)
+  strategy     Strategy?
+  city         String?   @db.VarChar(100)
+  state        String?   @db.Char(2)
+  assetType    AssetType? @map("asset_type")
+  closingDate  DateTime? @map("closing_date") @db.Date
+
+  // Property metrics
+  squareFeet   Decimal?  @map("square_feet") @db.Decimal(12, 2)
+  rentableSf   Decimal?  @map("rentable_sf") @db.Decimal(12, 2)
+  pricePerSf   Int?      @map("price_per_sf")      // cents
+  landAcres    Decimal?  @map("land_acres") @db.Decimal(10, 4)
+  units        Int?
+
+  // Financials (stored as integer cents)
+  pricePerUnit Int?      @map("price_per_unit")    // cents
+  askingPrice  Int?      @map("asking_price")       // cents
+  fundsNeeded  Int?      @map("funds_needed")       // cents
+  capRate      Decimal?  @map("cap_rate") @db.Decimal(5, 4)
+
+  createdById  String?   @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  createdBy    User?              @relation("CreatedBy", fields: [createdById], references: [id])
+  statusHistory DealStatusHistory[]
+
+  @@map("deals")
+}
+
+model DealStatusHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  dealId     String   @map("deal_id") @db.Uuid
+  fromStatus String?  @map("from_status") @db.VarChar(50)
+  toStatus   String   @map("to_status") @db.VarChar(50)
+  changedById String? @map("changed_by") @db.Uuid
+  changedAt  DateTime @default(now()) @map("changed_at")
+  note       String?
+
+  deal       Deal  @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  changedBy  User? @relation(fields: [changedById], references: [id])
+
+  @@map("deal_status_history")
+}
+
+enum DealType {
+  ACQUISITION  @map("Acquisition")
+  DISPOSITION  @map("Disposition")
+  REFINANCE    @map("Refinance")
+  DEVELOPMENT  @map("Development")
+}
+
+enum Strategy {
+  CORE          @map("Core")
+  CORE_PLUS     @map("Core-Plus")
+  VALUE_ADD     @map("Value-Add")
+  OPPORTUNISTIC @map("Opportunistic")
+  DEVELOPMENT   @map("Development")
+}
+
+enum AssetType {
+  MULTI_FAMILY  @map("Multi-Family")
+  OFFICE        @map("Office")
+  RETAIL        @map("Retail")
+  INDUSTRIAL    @map("Industrial")
+  MIXED_USE     @map("Mixed-Use")
+  LAND          @map("Land")
+  HOTEL         @map("Hotel")
+  SELF_STORAGE  @map("Self-Storage")
+  OTHER         @map("Other")
+}
